@@ -888,12 +888,15 @@ function handleCircularSave(event) {
   event.preventDefault();
   const submitter = event.submitter;
   const form = event.currentTarget;
+  const editor = document.querySelector("#document-editor");
+  const documentHtml = editor ? editor.innerHTML : form.querySelector("[name='documentHtml']").value;
+  form.querySelector("[name='documentHtml']").value = documentHtml;
   const data = Object.fromEntries(new FormData(form));
   const circulars = getCirculars();
   const existingIndex = circulars.findIndex((item) => item.id === form.dataset.id);
   const status = submitter.value === "submit" ? "hod-review" : "draft";
   const today = new Date().toISOString().slice(0, 10);
-  const details = extractDocumentDetails(data.documentHtml || "");
+  const details = extractDocumentDetails(documentHtml || "");
 
   const record = normalizeCircular({
     id: form.dataset.id || `CIR-2026-${String(circulars.length + 1).padStart(3, "0")}`,
@@ -912,9 +915,9 @@ function handleCircularSave(event) {
     body: details.body || "",
     tableText: "",
     note: "",
-    documentHtml: sanitizeDocumentHtml(data.documentHtml || ""),
+    documentHtml: sanitizeDocumentHtml(documentHtml || ""),
     remarks: existingIndex >= 0 ? circulars[existingIndex].remarks : [],
-    signatures: existingIndex >= 0 ? circulars[existingIndex].signatures : {}
+    signatures: status === "draft" && existingIndex >= 0 ? circulars[existingIndex].signatures : {}
   });
 
   record.remarks = [...record.remarks, status === "hod-review" ? "Submitted by Staff for HOD review." : "Draft saved by Staff."];
