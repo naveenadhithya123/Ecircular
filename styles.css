@@ -204,7 +204,7 @@ button.danger {
 }
 
 .metric-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .card-grid {
@@ -320,6 +320,12 @@ button.danger {
   color: #225b9f;
 }
 
+.status.need-changes,
+.status.hod-need-changes {
+  background: #fff1d6;
+  color: #9a5a00;
+}
+
 .status.approved {
   background: #e6f5ee;
   color: var(--success);
@@ -361,9 +367,29 @@ button.danger {
 
 .approval-layout {
   align-items: start;
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(620px, 1fr) minmax(320px, 0.42fr);
+  display: block;
+}
+
+.approval-page {
+  margin: 0;
+  max-width: none;
+  padding-left: 24px;
+  padding-right: 430px;
+}
+
+.approval-page .paper-preview {
+  margin: 0 auto;
+  max-width: 900px;
+  width: max-content;
+}
+
+.signature-placement-panel {
+  position: fixed;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 360px;
+  z-index: 6;
 }
 
 .preview {
@@ -480,7 +506,34 @@ button.danger {
   padding: 10px;
   position: sticky;
   top: 78px;
-  z-index: 4;
+  z-index: 30;
+}
+
+.tool-group {
+  align-items: center;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 70px;
+  padding: 4px 12px 18px 0;
+  position: relative;
+}
+
+.tool-group > span {
+  bottom: 0;
+  color: var(--muted);
+  font-size: 11px;
+  left: 0;
+  position: absolute;
+}
+
+.icon-tool {
+  font-size: 18px;
+  height: 36px;
+  min-height: 36px !important;
+  padding: 0 !important;
+  width: 38px;
 }
 
 .word-toolbar button {
@@ -507,9 +560,50 @@ button.danger {
   color: #fff !important;
 }
 
+.template-menu {
+  align-items: flex-start;
+}
+
+.template-panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: none;
+  left: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 8px;
+  position: absolute;
+  top: 44px;
+  width: 260px;
+  z-index: 40;
+}
+
+.template-menu:hover .template-panel,
+.template-menu:focus-within .template-panel,
+.template-menu.open .template-panel {
+  display: grid;
+  gap: 4px;
+}
+
+.template-panel button {
+  background: transparent;
+  color: var(--ink);
+  justify-content: flex-start;
+  min-height: 34px;
+  text-align: left;
+  white-space: normal;
+}
+
+.template-panel button:hover {
+  background: #e8f1f6;
+}
+
 .document-workspace {
   display: grid;
   justify-content: center;
+  padding-top: 8px;
 }
 
 .document-editor {
@@ -554,10 +648,30 @@ button.danger {
   z-index: 6;
 }
 
+.return-remark {
+  border: 1px solid #cfd9e5;
+  border-radius: 7px;
+  min-height: 40px;
+  min-width: 260px;
+  padding: 0 12px;
+}
+
+.change-note {
+  background: #fff8e8;
+  border: 1px solid #f0d18b;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+}
+
+.search-field {
+  min-width: 300px;
+}
+
 .editable-object {
   cursor: move;
   resize: both;
-  overflow: auto;
+  overflow: hidden;
   touch-action: none;
 }
 
@@ -598,13 +712,35 @@ button.danger {
   text-align: center;
 }
 
+.image-frame {
+  background: #fff;
+  border: 1px solid rgba(17, 17, 17, 0.32);
+  cursor: move;
+  overflow: hidden;
+  resize: both;
+  min-height: 50px;
+  min-width: 60px;
+  padding: 0;
+}
+
+.image-frame::after {
+  background: var(--primary);
+  border: 1px solid #fff;
+  bottom: -5px;
+  content: "";
+  height: 9px;
+  position: absolute;
+  right: -5px;
+  width: 9px;
+}
+
 .uploaded-image {
   background: #fff;
-  border: 1px solid rgba(17, 17, 17, 0.2);
   display: block;
-  min-height: 60px;
-  min-width: 80px;
+  height: 100%;
   object-fit: contain;
+  pointer-events: none;
+  width: 100%;
 }
 
 .signature-card {
@@ -644,7 +780,8 @@ button.danger {
 }
 
 .drawing-layer {
-  height: 100%;
+  bottom: 0;
+  height: auto;
   left: 0;
   overflow: visible;
   pointer-events: none;
@@ -656,6 +793,11 @@ button.danger {
 
 .drawn-stroke {
   pointer-events: stroke;
+}
+
+.drawn-stroke.selected-editable {
+  filter: drop-shadow(0 0 3px var(--primary));
+  stroke: var(--primary);
 }
 
 .kiot-header {
@@ -806,6 +948,17 @@ button.danger {
   font-size: 17px;
 }
 
+.document-editor .content-table {
+  table-layout: auto;
+}
+
+.document-editor .content-table th,
+.document-editor .content-table td {
+  min-width: 70px;
+  overflow: auto;
+  resize: horizontal;
+}
+
 .note {
   font-size: 17px;
   padding: 0 28px 18px;
@@ -943,6 +1096,16 @@ button.danger {
 
   .paper-preview {
     padding: 12px;
+  }
+
+  .approval-page {
+    padding-right: 16px;
+  }
+
+  .signature-placement-panel {
+    position: static;
+    transform: none;
+    width: auto;
   }
 
   .circular-paper {

@@ -31,6 +31,8 @@ const statusLabels = {
   draft: "Draft",
   "hod-review": "HOD Review",
   "principal-review": "Principal Review",
+  "need-changes": "Need Changes",
+  "hod-need-changes": "Need Changes",
   approved: "Approved",
   rejected: "Rejected"
 };
@@ -281,7 +283,7 @@ function shell(content, active = "") {
     ? `
       <nav class="nav">
         <a href="${roles[session.role].dashboard}" data-link class="${active === "dashboard" ? "active" : ""}">Dashboard</a>
-        <a href="/workflow" data-link class="${active === "workflow" ? "active" : ""}">Workflow</a>
+        <a href="/approved" data-link class="${active === "approved" ? "active" : ""}">Approved Circulars</a>
         ${session.role !== "staff" ? `<a href="/${session.role}/signature" data-link>Signature</a>` : ""}
         <a href="/" data-link>Switch Role</a>
         <a href="/logout" data-link>Logout</a>
@@ -311,7 +313,7 @@ function landingPage() {
     <main>
       <section class="hero-band">
         <div>
-          <div class="kicker" style="color:#e8fbff">KIOT Circular Workflow</div>
+          <div class="kicker" style="color:#e8fbff">KIOT Circular System</div>
           <h1>E-Circular System</h1>
           <p>Create KIOT-format circulars, route them through HOD and Principal approval, place signatures, and download the final copy.</p>
         </div>
@@ -407,6 +409,7 @@ function dashboardPage(role) {
     ["Drafts", circulars.filter((c) => c.status === "draft").length],
     ["HOD Review", circulars.filter((c) => c.status === "hod-review").length],
     ["Principal Review", circulars.filter((c) => c.status === "principal-review").length],
+    ["Need Changes", circulars.filter((c) => ["need-changes", "hod-need-changes"].includes(c.status)).length],
     ["Approved", circulars.filter((c) => c.status === "approved").length]
   ];
 
@@ -419,7 +422,6 @@ function dashboardPage(role) {
         </div>
         <div class="toolbar-actions">
           ${role === "staff" ? `<a class="button" href="/staff/circular/new" data-link>+ Create New</a>` : `<a class="button secondary" href="/${role}/signature" data-link>Change Signature</a>`}
-          <a class="button secondary" href="/workflow" data-link>View Workflow</a>
         </div>
       </div>
       <section class="metric-grid">
@@ -445,7 +447,7 @@ function tableTitle(role) {
 
 function circularTable(circulars, role) {
   const filtered = circulars.filter((c) => {
-    if (role === "hod") return ["hod-review", "principal-review", "approved", "rejected"].includes(c.status);
+    if (role === "hod") return ["hod-review", "principal-review", "hod-need-changes", "approved", "rejected"].includes(c.status);
     if (role === "principal") return ["principal-review", "approved", "rejected"].includes(c.status);
     return true;
   });
@@ -478,26 +480,30 @@ function circularTable(circulars, role) {
 }
 
 function actionFor(circular, role) {
-  if (role === "staff" && ["draft", "rejected"].includes(circular.status)) {
+  if (role === "staff" && ["draft", "need-changes", "rejected"].includes(circular.status)) {
     return `<a class="button secondary" href="/staff/circular/edit/${circular.id}" data-link>Edit</a>`;
   }
-  if (role === "staff") return `<a class="button secondary" href="/circular/${circular.id}" data-link>View / Download</a>`;
+  if (role === "staff") return `<a class="button secondary" href="/circular/${circular.id}" data-link>View</a>`;
   if (role === "hod" && circular.status === "hod-review") {
     return `<a class="button" href="/hod/circular/${circular.id}/review" data-link>Review & Sign</a>`;
+  }
+  if (role === "hod" && circular.status === "hod-need-changes") {
+    return `<a class="button" href="/hod/circular/edit/${circular.id}" data-link>Edit & Send</a>`;
   }
   if (role === "principal" && circular.status === "principal-review") {
     return `<a class="button" href="/principal/circular/${circular.id}/approval" data-link>Approve & Sign</a>`;
   }
-  return `<a class="button secondary" href="/circular/${circular.id}" data-link>View / Download</a>`;
+  return `<a class="button secondary" href="/circular/${circular.id}" data-link>View</a>`;
 }
 
-function editorPage(id) {
+function editorPage(id, editorRole = "staff") {
   const session = getSession();
-  if (!session || session.role !== "staff") return loginPage("staff");
+  if (!session || session.role !== editorRole) return loginPage(editorRole);
 
   const circular = id ? getCirculars().find((item) => item.id === id) : null;
   const title = circular ? "Edit circular" : "Create new circular";
   const selectedTemplate = templates.find((template) => template.id === "blank");
+  const correctionRemark = circular?.remarks?.filter((remark) => /Need changes|Returned for changes/i.test(remark)).at(-1);
 
   return shell(`
     <main class="page wide-page">
@@ -507,56 +513,72 @@ function editorPage(id) {
           <h1>${title}</h1>
         </div>
         <div class="toolbar-actions">
-          <button type="button" class="secondary" id="print-btn">Print</button>
-          <a class="button secondary" href="/staff/dashboard" data-link>Back to Dashboard</a>
+          <a class="button secondary" href="${roles[editorRole].dashboard}" data-link>Back to Dashboard</a>
         </div>
       </div>
-      <section class="template-strip">
-        ${templates.map((template) => `
-          <button type="button" class="template-chip" data-template="${template.id}">
-            <strong>${escapeHtml(template.name)}</strong>
-            <span>${escapeHtml(template.department)}</span>
-          </button>
-        `).join("")}
-      </section>
-      <form id="circular-form" data-id="${circular ? circular.id : ""}">
+      ${correctionRemark ? `<section class="change-note"><strong>Correction comment:</strong> ${escapeHtml(correctionRemark)}</section>` : ""}
+      <form id="circular-form" data-id="${circular ? circular.id : ""}" data-editor-role="${editorRole}">
         <input type="hidden" name="documentHtml" />
         <input type="hidden" name="templateId" value="${selectedTemplate.id}" />
         <div class="word-toolbar" aria-label="Document editing tools">
-          <button type="button" class="secondary" data-history="undo">Undo</button>
-          <button type="button" class="secondary" data-history="redo">Redo</button>
-          <button type="button" class="secondary" data-command="bold"><strong>B</strong></button>
-          <button type="button" class="secondary" data-command="italic"><em>I</em></button>
-          <button type="button" class="secondary" data-command="underline"><u>U</u></button>
-          <button type="button" class="secondary" data-command="strikeThrough">Strike</button>
-          <button type="button" class="secondary" data-command="subscript">X2</button>
-          <button type="button" class="secondary" data-command="superscript">X2</button>
-          <button type="button" class="secondary" data-command="justifyLeft">Left</button>
-          <button type="button" class="secondary" data-command="justifyCenter">Center</button>
-          <button type="button" class="secondary" data-command="justifyRight">Right</button>
-          <button type="button" class="secondary" data-command="insertUnorderedList">Bullets</button>
-          <button type="button" class="secondary" data-command="insertOrderedList">Numbering</button>
-          <button type="button" class="secondary" data-insert="table">Table</button>
-          <button type="button" class="secondary" data-table="addRow">Add Row</button>
-          <button type="button" class="secondary" data-table="addColumn">Add Column</button>
-          <button type="button" class="secondary" data-table="deleteRow">Delete Row</button>
-          <button type="button" class="secondary" data-table="deleteColumn">Delete Column</button>
-          <button type="button" class="secondary" data-insert="line">Line</button>
-          <button type="button" class="secondary" data-insert="box">Box</button>
-          <button type="button" class="secondary" data-insert="circle">Circle</button>
-          <button type="button" class="secondary" data-insert="textbox">Text Box</button>
-          <button type="button" class="secondary" data-draw="line">Draw Line</button>
-          <button type="button" class="secondary" data-draw="curve">Curve</button>
-          <button type="button" class="secondary" data-draw="free">Pencil</button>
-          <button type="button" class="secondary" data-action="image">Add Image</button>
-          <button type="button" class="secondary" data-action="erase">Erase</button>
-          <input id="editor-image-input" type="file" accept="image/*" hidden />
-          <input class="color-control" type="color" value="#111111" data-draw-color title="Draw color" />
-          <select data-command-value="fontSize" title="Font size">
-            <option value="3">Normal</option>
-            <option value="4">Large</option>
-            <option value="5">Heading</option>
-          </select>
+          <div class="tool-group template-menu">
+            <button type="button" class="secondary icon-tool" data-action="templates" title="Templates">▦</button>
+            <div class="template-panel">
+              ${templates.map((template) => `<button type="button" data-template="${template.id}">${escapeHtml(template.name)}</button>`).join("")}
+            </div>
+            <span>Templates</span>
+          </div>
+          <div class="tool-group">
+            <button type="button" class="secondary icon-tool" data-history="undo" title="Undo">↶</button>
+            <button type="button" class="secondary icon-tool" data-history="redo" title="Redo">↷</button>
+            <span>History</span>
+          </div>
+          <div class="tool-group">
+            <button type="button" class="secondary icon-tool" data-command="bold" title="Bold"><strong>B</strong></button>
+            <button type="button" class="secondary icon-tool" data-command="italic" title="Italic"><em>I</em></button>
+            <button type="button" class="secondary icon-tool" data-command="underline" title="Underline"><u>U</u></button>
+            <button type="button" class="secondary icon-tool" data-command="strikeThrough" title="Strikethrough">S</button>
+            <button type="button" class="secondary icon-tool" data-command="subscript" title="Subscript">x₂</button>
+            <button type="button" class="secondary icon-tool" data-command="superscript" title="Superscript">x²</button>
+            <select data-command-value="fontSize" title="Font size">
+              <option value="3">Normal</option>
+              <option value="4">Large</option>
+              <option value="5">Heading</option>
+            </select>
+            <span>Font</span>
+          </div>
+          <div class="tool-group">
+            <button type="button" class="secondary icon-tool" data-command="justifyLeft" title="Align left">☰</button>
+            <button type="button" class="secondary icon-tool" data-command="justifyCenter" title="Align center">≡</button>
+            <button type="button" class="secondary icon-tool" data-command="justifyRight" title="Align right">☷</button>
+            <button type="button" class="secondary icon-tool" data-command="insertUnorderedList" title="Bullets">•</button>
+            <button type="button" class="secondary icon-tool" data-command="insertOrderedList" title="Numbering">1.</button>
+            <span>Paragraph</span>
+          </div>
+          <div class="tool-group">
+            <button type="button" class="secondary icon-tool" data-insert="table" title="Insert table">▦</button>
+            <button type="button" class="secondary icon-tool" data-table="addRow" title="Add row">↧</button>
+            <button type="button" class="secondary icon-tool" data-table="addColumn" title="Add column">↦</button>
+            <button type="button" class="secondary icon-tool" data-table="deleteRow" title="Delete row">⌫</button>
+            <button type="button" class="secondary icon-tool" data-table="deleteColumn" title="Delete column">⌦</button>
+            <span>Table</span>
+          </div>
+          <div class="tool-group">
+            <button type="button" class="secondary icon-tool" data-insert="box" title="Rectangle">□</button>
+            <button type="button" class="secondary icon-tool" data-insert="circle" title="Circle">○</button>
+            <button type="button" class="secondary icon-tool" data-insert="textbox" title="Text box">A</button>
+            <button type="button" class="secondary icon-tool" data-draw="line" title="Line">╱</button>
+            <button type="button" class="secondary icon-tool" data-draw="curve" title="Curve">⌒</button>
+            <button type="button" class="secondary icon-tool" data-draw="free" title="Pencil">✎</button>
+            <input class="color-control" type="color" value="#111111" data-draw-color title="Draw color" />
+            <span>Shapes</span>
+          </div>
+          <div class="tool-group">
+            <button type="button" class="secondary icon-tool" data-action="image" title="Add image">▧</button>
+            <button type="button" class="secondary icon-tool" data-action="erase" title="Erase selected">⌧</button>
+            <input id="editor-image-input" type="file" accept="image/*" hidden />
+            <span>Image</span>
+          </div>
         </div>
         <section class="document-workspace">
           <article class="preview paper-preview">
@@ -566,8 +588,10 @@ function editorPage(id) {
           </article>
         </section>
         <div class="floating-savebar">
+          ${editorRole === "hod" ? `<input name="returnRemark" class="return-remark" placeholder="Correction message for Staff" hidden />` : ""}
           <button type="submit" name="intent" value="draft" class="secondary">Save Draft</button>
-          <button type="submit" name="intent" value="submit">Submit to HOD</button>
+          <button type="submit" name="intent" value="submit">${editorRole === "hod" ? "Send to Principal" : "Submit to HOD"}</button>
+          ${editorRole === "hod" ? `<button type="button" class="secondary" id="return-staff-btn">Need Staff Correction</button>` : ""}
         </div>
       </form>
     </main>`, "dashboard");
@@ -726,7 +750,7 @@ function decisionPage(role, id) {
         <div class="preview paper-preview sign-preview" id="approval-preview" data-role="${role}">
           ${previewMarkup({ ...circular, signatures: { ...circular.signatures, [role]: { src: getSignature(role), ...defaultPlacement } } })}
         </div>
-        <section class="panel pad">
+        <section class="panel pad signature-placement-panel">
           <div class="kicker">Signature Placement</div>
           <p class="muted">Drag the signature anywhere on the circular page and resize it before approving.</p>
           <form class="form" id="decision-form" data-role="${role}" data-id="${id}">
@@ -737,13 +761,14 @@ function decisionPage(role, id) {
               <label>Signature size</label>
               <input type="range" name="signatureSize" min="8" max="36" value="${defaultPlacement.w}" />
             </div>
-            <div class="field">
+            <div class="field remark-field" hidden>
               <label>Remark</label>
-              <textarea name="remark" required>${isPrincipal ? "Approved for publication." : "Verified and forwarded for principal approval."}</textarea>
+              <textarea name="remark" placeholder="Write the correction needed"></textarea>
             </div>
             <div class="toolbar-actions">
-              <button type="submit" name="decision" value="approve">${isPrincipal ? "Approve Circular" : "Send to Principal"}</button>
-              <button type="submit" name="decision" value="reject" class="danger">${isPrincipal ? "Reject" : "Return for Correction"}</button>
+              <button type="submit" name="decision" value="approve">${isPrincipal ? "Accept & Sign" : "Accept & Sign and Send"}</button>
+              <button type="submit" name="decision" value="reject" class="danger">Reject</button>
+              <button type="button" class="secondary" id="need-changes-btn" data-submit-label="${isPrincipal ? "Send Correction to HOD" : "Send Correction to Staff"}">Need Correction</button>
             </div>
           </form>
         </section>
@@ -763,41 +788,63 @@ function circularViewPage(id) {
         </div>
         <div class="toolbar-actions">
           ${statusPill(circular.status)}
-          <button type="button" class="secondary" id="download-btn" data-id="${circular.id}">Download</button>
-          <button type="button" class="secondary" id="print-btn">Print</button>
         </div>
       </div>
       <section class="preview paper-preview">${previewMarkup(circular)}</section>
     </main>`);
 }
 
-function workflowPage() {
-  const steps = [
-    ["Login", "User signs in from /login/staff, /login/hod, or /login/principle."],
-    ["Signature Setup", "HOD and Principal upload their signature once. The system remembers it for later approvals."],
-    ["Staff Editor", "Staff selects a KIOT template, edits content, creates tables, and submits to HOD."],
-    ["HOD Sign", "HOD drags and resizes the signature in the HOD box, then sends the circular to Principal."],
-    ["Principal Sign", "Principal places the final signature and approves the circular."],
-    ["Download", "Any role can open the circular view and download or print the final copy."]
-  ];
+function approvedPage() {
+  const session = getSession();
+  if (!session) return landingPage();
+  const approved = getCirculars()
+    .filter((circular) => circular.status === "approved")
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   return shell(`
     <main class="page">
       <div class="toolbar">
         <div>
-          <div class="kicker">End-to-End Flow</div>
-          <h1>E-Circular workflow</h1>
+          <div class="kicker">Approved Circulars</div>
+          <h1>Approved circular list</h1>
+        </div>
+        <div class="field search-field">
+          <label>Search</label>
+          <input id="approved-search" type="search" placeholder="Search by subject, date, department" />
         </div>
       </div>
-      <section class="workflow">
-        ${steps.map(([title, copy], index) => `
-          <article class="workflow-step">
-            <span class="step-no">${index + 1}</span>
-            <div><h3>${title}</h3><p class="muted">${copy}</p></div>
-          </article>
-        `).join("")}
+      <section class="panel pad">
+        <table class="table approved-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Circular No.</th>
+              <th>Subject</th>
+              <th>Department</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${approved.map((circular) => `
+              <tr data-approved-row data-search="${escapeHtml(`${circular.subject} ${circular.department} ${formatDate(circular.circularDate)} ${circular.circularNo}`.toLowerCase())}">
+                <td>${formatDate(circular.circularDate || circular.updatedAt)}</td>
+                <td>${escapeHtml(circular.circularNo || circular.id)}</td>
+                <td><strong>${escapeHtml(circular.subject || circular.title)}</strong></td>
+                <td>${escapeHtml(circular.department)}</td>
+                <td>
+                  <div class="toolbar-actions">
+                    <a class="button secondary" href="/circular/${circular.id}" data-link>View</a>
+                    <button type="button" class="secondary" data-download data-id="${circular.id}">Download</button>
+                    <button type="button" class="secondary" data-print-approved data-id="${circular.id}">Print</button>
+                  </div>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        ${approved.length ? "" : `<p class="muted">No approved circulars yet.</p>`}
       </section>
-    </main>`, "workflow");
+    </main>`, "approved");
 }
 
 function notFoundPage() {
@@ -879,6 +926,12 @@ function extractDocumentDetails(html) {
   };
 }
 
+function nextSignaturesAfterEdit(editorRole, status, existingSignatures = {}) {
+  if (status === "draft") return existingSignatures;
+  if (editorRole === "hod" && existingSignatures.hod) return { hod: existingSignatures.hod };
+  return {};
+}
+
 function parseDisplayDate(value) {
   const match = String(value || "").match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   return match ? `${match[3]}-${match[2]}-${match[1]}` : "";
@@ -894,7 +947,9 @@ function handleCircularSave(event) {
   const data = Object.fromEntries(new FormData(form));
   const circulars = getCirculars();
   const existingIndex = circulars.findIndex((item) => item.id === form.dataset.id);
-  const status = submitter.value === "submit" ? "hod-review" : "draft";
+  const editorRole = form.dataset.editorRole || "staff";
+  const intent = data.intent || submitter?.value || "draft";
+  const status = intent === "return-staff" ? "need-changes" : intent === "submit" ? (editorRole === "hod" ? "principal-review" : "hod-review") : "draft";
   const today = new Date().toISOString().slice(0, 10);
   const details = extractDocumentDetails(documentHtml || "");
 
@@ -908,7 +963,7 @@ function handleCircularSave(event) {
     issuedBy: details.issuedBy || "",
     priority: "Medium",
     status,
-    createdBy: "Staff",
+    createdBy: editorRole === "hod" ? "HOD" : "Staff",
     createdAt: existingIndex >= 0 ? circulars[existingIndex].createdAt : today,
     updatedAt: today,
     circularDate: details.circularDate || today,
@@ -917,17 +972,26 @@ function handleCircularSave(event) {
     note: "",
     documentHtml: sanitizeDocumentHtml(documentHtml || ""),
     remarks: existingIndex >= 0 ? circulars[existingIndex].remarks : [],
-    signatures: status === "draft" && existingIndex >= 0 ? circulars[existingIndex].signatures : {}
+    signatures: nextSignaturesAfterEdit(editorRole, status, existingIndex >= 0 ? circulars[existingIndex].signatures : {})
   });
 
-  record.remarks = [...record.remarks, status === "hod-review" ? "Submitted by Staff for HOD review." : "Draft saved by Staff."];
+  record.remarks = [
+    ...record.remarks,
+    intent === "return-staff"
+      ? `Need changes from HOD: ${data.returnRemark}`
+      : status === "principal-review"
+      ? "Edited by HOD and sent to Principal."
+      : status === "hod-review"
+        ? "Submitted by Staff for HOD review."
+        : `${roles[editorRole].label} saved a draft.`
+  ];
 
   if (existingIndex >= 0) circulars[existingIndex] = record;
   else circulars.unshift(record);
 
   saveCirculars(circulars);
-  showToast(status === "hod-review" ? "Circular submitted to HOD." : "Draft saved.");
-  navigate("/staff/dashboard");
+  showToast(intent === "return-staff" ? "Circular returned to Staff for correction." : status === "principal-review" ? "Circular sent to Principal." : status === "hod-review" ? "Circular submitted to HOD." : "Draft saved.");
+  navigate(roles[editorRole].dashboard);
 }
 
 function handleDecision(event) {
@@ -953,11 +1017,27 @@ function handleDecision(event) {
   }
 
   if (role === "hod") {
-    circulars[index].status = decision === "approve" ? "principal-review" : "rejected";
-    circulars[index].remarks.push(decision === "approve" ? `HOD: ${data.remark}` : `Returned by HOD: ${data.remark}`);
+    if (decision === "approve") {
+      circulars[index].status = "principal-review";
+      circulars[index].remarks.push("HOD approved and sent to Principal.");
+    } else if (decision === "changes") {
+      circulars[index].status = "need-changes";
+      circulars[index].remarks.push(`Need changes from HOD: ${data.remark}`);
+    } else {
+      circulars[index].status = "rejected";
+      circulars[index].remarks.push("Rejected by HOD.");
+    }
   } else {
-    circulars[index].status = decision === "approve" ? "approved" : "rejected";
-    circulars[index].remarks.push(decision === "approve" ? `Principal: ${data.remark}` : `Rejected by Principal: ${data.remark}`);
+    if (decision === "approve") {
+      circulars[index].status = "approved";
+      circulars[index].remarks.push("Principal approved the circular.");
+    } else if (decision === "changes") {
+      circulars[index].status = "hod-need-changes";
+      circulars[index].remarks.push(`Need changes from Principal: ${data.remark}`);
+    } else {
+      circulars[index].status = "rejected";
+      circulars[index].remarks.push("Rejected by Principal.");
+    }
   }
 
   circulars[index].updatedAt = new Date().toISOString().slice(0, 10);
@@ -978,11 +1058,86 @@ function bindEvents() {
   document.querySelector("#signature-form")?.addEventListener("submit", handleSignatureSave);
   document.querySelector("#circular-form")?.addEventListener("submit", handleCircularSave);
   document.querySelector("#decision-form")?.addEventListener("submit", handleDecision);
-  document.querySelector("#print-btn")?.addEventListener("click", () => window.print());
-  document.querySelector("#download-btn")?.addEventListener("click", handleDownload);
+  document.querySelector("#need-changes-btn")?.addEventListener("click", showNeedChangesRemark);
+  document.querySelectorAll("#decision-form button[name='decision']").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.value !== "changes") hideNeedChangesRequirement();
+    });
+  });
+  document.querySelectorAll("[data-download]").forEach((button) => button.addEventListener("click", handleDownload));
+  document.querySelectorAll("[data-print-approved]").forEach((button) => button.addEventListener("click", handleApprovedPrint));
+  document.querySelector("#approved-search")?.addEventListener("input", filterApprovedCirculars);
+  document.querySelector("[data-action='templates']")?.addEventListener("click", toggleTemplatePanel);
+  document.querySelector("#return-staff-btn")?.addEventListener("click", handleReturnStaffFromEditor);
 
   bindEditor();
   bindSignaturePlacement();
+}
+
+function handleReturnStaffFromEditor() {
+  const form = document.querySelector("#circular-form");
+  const input = form?.querySelector(".return-remark");
+  const button = document.querySelector("#return-staff-btn");
+  if (!form || !input || !button) return;
+
+  if (input.hidden) {
+    input.hidden = false;
+    input.required = true;
+    button.textContent = "Send to Staff";
+    input.focus();
+    return;
+  }
+
+  if (!input.value.trim()) {
+    input.reportValidity();
+    return;
+  }
+
+  const intent = document.createElement("input");
+  intent.type = "hidden";
+  intent.name = "intent";
+  intent.value = "return-staff";
+  form.appendChild(intent);
+  form.requestSubmit();
+}
+
+function showNeedChangesRemark() {
+  const form = document.querySelector("#decision-form");
+  if (!form) return;
+  const button = document.querySelector("#need-changes-btn");
+
+  if (!form.querySelector(".remark-field").hidden) {
+    const remark = form.remark.value.trim();
+    if (!remark) {
+      form.remark.required = true;
+      form.reportValidity();
+      return;
+    }
+    const hiddenDecision = document.createElement("input");
+    hiddenDecision.type = "hidden";
+    hiddenDecision.name = "decision";
+    hiddenDecision.value = "changes";
+    form.appendChild(hiddenDecision);
+    form.requestSubmit();
+    return;
+  }
+
+  form.querySelector(".remark-field").hidden = false;
+  form.remark.required = true;
+  if (button) button.textContent = button.dataset.submitLabel || "Send Correction";
+  form.remark.focus();
+}
+
+function hideNeedChangesRequirement() {
+  const form = document.querySelector("#decision-form");
+  if (!form) return;
+  form.remark.required = false;
+  const button = document.querySelector("#need-changes-btn");
+  if (button) button.textContent = "Need Correction";
+}
+
+function toggleTemplatePanel() {
+  document.querySelector(".template-menu")?.classList.toggle("open");
 }
 
 function bindEditor() {
@@ -1000,7 +1155,7 @@ function bindEditor() {
     button.addEventListener("click", () => {
       editor.focus();
       document.execCommand(button.dataset.command, false, null);
-      history.snapshot();
+      history.snapshotNow();
     });
   });
 
@@ -1008,7 +1163,7 @@ function bindEditor() {
     control.addEventListener("change", () => {
       editor.focus();
       document.execCommand(control.dataset.commandValue, false, control.value);
-      history.snapshot();
+      history.snapshotNow();
     });
   });
 
@@ -1020,19 +1175,22 @@ function bindEditor() {
       editor.innerHTML = editorDocumentMarkup({ ...template, circularNo: nextCircularNo(), circularDate: new Date().toISOString().slice(0, 10) });
       bindMovableObjects(editor);
       bindDrawingTools(editor, history);
-      history.snapshot();
+      history.snapshotNow();
     });
   });
 
   document.querySelectorAll("[data-insert]").forEach((button) => {
     button.addEventListener("click", () => {
       insertEditorElement(editor, button.dataset.insert);
-      history.snapshot();
+      history.snapshotNow();
     });
   });
 
   document.querySelectorAll("[data-table]").forEach((button) => {
-    button.addEventListener("click", () => editSelectedTable(button.dataset.table));
+    button.addEventListener("click", () => {
+      editSelectedTable(button.dataset.table);
+      history.snapshotNow();
+    });
   });
 
   document.querySelector("[data-action='erase']")?.addEventListener("click", () => {
@@ -1065,28 +1223,35 @@ function bindEditor() {
 
   bindMovableObjects(editor);
   bindDrawingTools(editor, history);
-  history.snapshot();
+  bindDrawableStrokes(editor);
+  history.snapshotNow();
 }
 
 function createEditorHistory(editor) {
   const stack = [];
   let index = -1;
   let timer = null;
+  const push = () => {
+    const html = editor.innerHTML;
+    if (stack[index] === html) return;
+    stack.splice(index + 1);
+    stack.push(html);
+    index = stack.length - 1;
+  };
   const restore = () => {
     editor.innerHTML = stack[index] || editor.innerHTML;
     bindMovableObjects(editor);
     bindDrawingTools(editor, history);
+    bindDrawableStrokes(editor);
   };
   const history = {
     snapshot() {
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        const html = editor.innerHTML;
-        if (stack[index] === html) return;
-        stack.splice(index + 1);
-        stack.push(html);
-        index = stack.length - 1;
-      }, 80);
+      timer = setTimeout(push, 80);
+    },
+    snapshotNow() {
+      clearTimeout(timer);
+      push();
     },
     undo() {
       if (index <= 0) return;
@@ -1104,8 +1269,12 @@ function createEditorHistory(editor) {
 }
 
 function insertEditorElement(editor, type) {
+  if (type === "table") {
+    insertPromptedTable(editor);
+    return;
+  }
+
   const snippets = {
-    table: `<table class="content-table"><tr><th>S.No</th><th>Date</th><th>Time</th><th>Venue</th><th>Activity</th></tr><tr><td>1</td><td>Edit date</td><td>Edit time</td><td>Edit venue</td><td>Edit activity</td></tr></table>`,
     line: `<div class="drawn-line editable-object" contenteditable="false"></div>`,
     box: `<div class="drawn-box editable-object" contenteditable="true">Type inside box</div>`,
     circle: `<div class="drawn-circle editable-object" contenteditable="true">Text</div>`,
@@ -1116,20 +1285,32 @@ function insertEditorElement(editor, type) {
   bindMovableObjects(editor);
 }
 
+function insertPromptedTable(editor) {
+  const rows = Math.max(1, Math.min(30, Number(prompt("How many rows?", "3")) || 3));
+  const columns = Math.max(1, Math.min(12, Number(prompt("How many columns?", "4")) || 4));
+  const htmlRows = Array.from({ length: rows }, (_, rowIndex) => `
+    <tr>
+      ${Array.from({ length: columns }, (_, colIndex) => rowIndex === 0 ? `<th>Header ${colIndex + 1}</th>` : `<td>Edit</td>`).join("")}
+    </tr>
+  `).join("");
+  editor.focus();
+  document.execCommand("insertHTML", false, `<table class="content-table editable-table">${htmlRows}</table>`);
+}
+
 function insertImageObject(editor, src) {
   const paper = editor.querySelector(".circular-paper");
   if (!paper) return;
-  const image = document.createElement("img");
-  image.src = src;
-  image.alt = "Uploaded image";
-  image.className = "uploaded-image editable-object";
-  image.contentEditable = "false";
-  image.style.left = "120px";
-  image.style.top = "240px";
-  image.style.width = "180px";
-  image.style.position = "absolute";
-  image.style.zIndex = "5";
-  paper.appendChild(image);
+  const frame = document.createElement("div");
+  frame.className = "image-frame editable-object";
+  frame.contentEditable = "false";
+  frame.style.left = "120px";
+  frame.style.top = "240px";
+  frame.style.width = "180px";
+  frame.style.height = "180px";
+  frame.style.position = "absolute";
+  frame.style.zIndex = "5";
+  frame.innerHTML = `<img class="uploaded-image" src="${src}" alt="Uploaded image" />`;
+  paper.appendChild(frame);
 }
 
 function bindDrawingTools(editor, history) {
@@ -1157,6 +1338,9 @@ function bindDrawingTools(editor, history) {
     const tool = layer.dataset.tool;
     if (!tool) return;
     event.preventDefault();
+    layer.setAttribute("width", paper.clientWidth);
+    layer.setAttribute("height", paper.clientHeight);
+    layer.setAttribute("viewBox", `0 0 ${paper.clientWidth} ${paper.clientHeight}`);
     const color = document.querySelector("[data-draw-color]")?.value || "#111111";
     const start = pointInPaper(event, paper);
     let shape;
@@ -1191,11 +1375,24 @@ function bindDrawingTools(editor, history) {
     const stop = () => {
       layer.removeEventListener("pointermove", move);
       layer.removeEventListener("pointerup", stop);
+      bindDrawableStrokes(editor);
       history.snapshot();
     };
 
     layer.addEventListener("pointermove", move);
     layer.addEventListener("pointerup", stop);
+  });
+}
+
+function bindDrawableStrokes(editor) {
+  editor.querySelectorAll(".drawn-stroke").forEach((stroke) => {
+    if (stroke.dataset.strokeBound === "true") return;
+    stroke.dataset.strokeBound = "true";
+    stroke.addEventListener("click", (event) => {
+      event.stopPropagation();
+      editor.querySelectorAll(".selected-editable").forEach((node) => node.classList.remove("selected-editable"));
+      stroke.classList.add("selected-editable");
+    });
   });
 }
 
@@ -1267,6 +1464,8 @@ function bindMovableObjects(editor) {
     });
     item.addEventListener("pointerdown", (event) => {
       if (event.target !== item || item.isContentEditable && event.detail > 1) return;
+      const resizeZone = event.offsetX > item.clientWidth - 18 && event.offsetY > item.clientHeight - 18;
+      if (resizeZone) return;
       const paper = editor.querySelector(".circular-paper");
       const paperRect = paper.getBoundingClientRect();
       const itemRect = item.getBoundingClientRect();
@@ -1353,9 +1552,11 @@ function bindSignaturePlacement() {
   updateHidden();
 }
 
-async function handleDownload() {
-  const circular = document.querySelector("#printable-circular");
-  if (!circular) return;
+async function handleDownload(event) {
+  const id = event?.currentTarget?.dataset?.id;
+  const circularRecord = id ? getCirculars().find((item) => item.id === id) : null;
+  const circularHtml = circularRecord ? previewMarkup(circularRecord) : document.querySelector("#printable-circular")?.outerHTML;
+  if (!circularHtml) return;
   let css = "";
   try {
     css = await fetch("/styles.css").then((response) => response.text());
@@ -1371,7 +1572,7 @@ async function handleDownload() {
 <style>${css}</style>
 </head>
 <body>
-<main class="download-page">${circular.outerHTML}</main>
+<main class="download-page">${circularHtml}</main>
 </body>
 </html>`;
   const blob = new Blob([html], { type: "text/html" });
@@ -1381,6 +1582,43 @@ async function handleDownload() {
   link.download = "e-circular.html";
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function handleApprovedPrint(event) {
+  const id = event.currentTarget.dataset.id;
+  const circular = getCirculars().find((item) => item.id === id);
+  if (!circular) return;
+  const printWindow = window.open("", "_blank", "width=900,height=1100");
+  if (!printWindow) {
+    showToast("Allow popups to print the circular.");
+    return;
+  }
+  fetch("/styles.css")
+    .then((response) => response.text())
+    .then((css) => {
+      printWindow.document.write(`
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>${escapeHtml(circular.subject || "Approved Circular")}</title>
+            <style>${css}</style>
+          </head>
+          <body>
+            <main class="download-page">${previewMarkup(circular)}</main>
+            <script>window.onload = () => { window.print(); };</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    });
+}
+
+function filterApprovedCirculars(event) {
+  const value = event.target.value.toLowerCase();
+  document.querySelectorAll("[data-approved-row]").forEach((row) => {
+    row.hidden = !row.dataset.search.includes(value);
+  });
 }
 
 function showToast(message) {
@@ -1402,12 +1640,13 @@ function render() {
 
   const routes = [
     [/^\/$/, () => landingPage()],
-    [/^\/workflow$/, () => workflowPage()],
+    [/^\/approved$/, () => approvedPage()],
     [/^\/login\/(principle|principal|hod|staff)$/, ([, role]) => loginPage(role)],
     [/^\/(principle|principal|hod|staff)\/dashboard$/, ([, role]) => dashboardPage(role)],
     [/^\/(principle|principal|hod)\/signature$/, ([, role]) => signaturePage(role)],
     [/^\/staff\/circular\/new$/, () => editorPage()],
     [/^\/staff\/circular\/edit\/([^/]+)$/, ([, id]) => editorPage(id)],
+    [/^\/hod\/circular\/edit\/([^/]+)$/, ([, id]) => editorPage(id, "hod")],
     [/^\/hod\/circular\/([^/]+)\/review$/, ([, id]) => decisionPage("hod", id)],
     [/^\/principal\/circular\/([^/]+)\/approval$/, ([, id]) => decisionPage("principal", id)],
     [/^\/circular\/([^/]+)$/, ([, id]) => circularViewPage(id)]
