@@ -2346,7 +2346,6 @@ function shell(content, active = "") {
         <a href="${roles[session.role].dashboard}" data-link class="${active === "dashboard" ? "active" : ""}">Dashboard</a>
         <a href="/approved" data-link class="${active === "approved" ? "active" : ""}">Approved Circulars</a>
         ${session.role !== "staff" ? `<a href="/${session.role}/signature" data-link>Signature</a>` : ""}
-        <a href="/" data-link>Switch Role</a>
         <a href="/logout" data-link>Logout</a>
       </nav>`
     : `
