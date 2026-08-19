@@ -1,0 +1,12 @@
+{
+  "name": "e-circular-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:react": "npm --prefix react install",
+    "dev": "npm --prefix react run dev",
+    "build": "npm --prefix react run build",
+    "start": "node node/index.js"
+  },
+  "dependencies": {}
+}

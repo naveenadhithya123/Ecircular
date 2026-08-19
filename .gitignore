@@ -1,0 +1,5 @@
+*.log
+node_modules/
+react/node_modules/
+dist/
+.DS_Store
