@@ -8,11 +8,41 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tiptap/extension-color": "^3.31.4",
+    "@tiptap/extension-font-family": "^3.31.4",
+    "@tiptap/extension-highlight": "^3.31.4",
+    "@tiptap/extension-image": "^3.31.4",
+    "@tiptap/extension-subscript": "^3.31.4",
+    "@tiptap/extension-superscript": "^3.31.4",
+    "@tiptap/extension-table": "^3.31.4",
+    "@tiptap/extension-table-cell": "^3.31.4",
+    "@tiptap/extension-table-header": "^3.31.4",
+    "@tiptap/extension-table-row": "^3.31.4",
+    "@tiptap/extension-text-align": "^3.31.4",
+    "@tiptap/extension-text-style": "^3.31.4",
+    "@tiptap/extension-underline": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
+    "autoprefixer": "^10.6.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^18.0.7",
+    "fabric": "^7.4.0",
+    "lucide-react": "^1.55.0",
+    "postcss": "^8.5.29",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
+    "tiptap-extension-resize-image": "^1.4.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "puppeteer": "^25.13.0",
     "vite": "^5.4.11"
   }
 }

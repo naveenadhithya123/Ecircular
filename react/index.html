@@ -8,6 +8,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">' + message + '</div>';
+      };
+      window.addEventListener('unhandledrejection', function(event) {
+        document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">' + event.reason + '</div>';
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

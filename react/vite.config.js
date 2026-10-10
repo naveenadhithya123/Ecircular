@@ -1,10 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
-// Node's server (node/index.js) serves static files from the repo-root
-// "dist" folder, so the build output is placed one level above "react/".
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    tailwindcss()
+  ],
   build: {
     outDir: "../dist",
     emptyOutDir: true
